@@ -26,6 +26,7 @@ import {
   AutoPrintRegExp,
   CursorTool,
   DEFAULT_SCALE_VALUE,
+  docStyle,
   getActiveOrFocusedElement,
   isValidRotation,
   isValidScrollMode,
@@ -56,6 +57,7 @@ import {
   shadow,
   stopEvent,
   TouchManager,
+  updateUrlHash,
   version,
 } from "pdfjs-lib";
 import { AppOptions, OptionKind } from "./app_options.js";
@@ -206,14 +208,14 @@ const PDFViewerApplication = {
     let mode;
     switch (AppOptions.get("viewerCssTheme")) {
       case 1:
-        mode = "is-light";
+        mode = "light";
         break;
       case 2:
-        mode = "is-dark";
+        mode = "dark";
         break;
     }
     if (mode) {
-      document.documentElement.classList.add(mode);
+      docStyle.setProperty("color-scheme", mode);
     }
 
     if (typeof PDFJSDev === "undefined" || PDFJSDev.test("TESTING")) {
@@ -324,8 +326,6 @@ const PDFViewerApplication = {
       }
     }
     if (params.has("pdfbug")) {
-      AppOptions.setAll({ pdfBug: true, fontExtraProperties: true });
-
       const enabled = params.get("pdfbug").split(",");
       try {
         await loadPDFBug();
@@ -333,6 +333,12 @@ const PDFViewerApplication = {
       } catch (ex) {
         console.error("_parseHashParams:", ex);
       }
+
+      const debugOpts = { pdfBug: true, fontExtraProperties: true };
+      if (globalThis.StepperManager?.enabled) {
+        debugOpts.minDurationToUpdateCanvas = 0;
+      }
+      AppOptions.setAll(debugOpts);
     }
     // It is not possible to change locale for the (various) extension builds.
     if (
@@ -355,6 +361,7 @@ const PDFViewerApplication = {
     // Set some specific preferences for tests.
     if (typeof PDFJSDev !== "undefined" && PDFJSDev.test("TESTING")) {
       Object.assign(opts, {
+        capCanvasAreaFactor: x => parseInt(x),
         docBaseUrl: x => x,
         enableAltText: x => x === "true",
         enableAutoLinking: x => x === "true",
@@ -365,6 +372,7 @@ const PDFViewerApplication = {
         maxCanvasPixels: x => parseInt(x),
         spreadModeOnLoad: x => parseInt(x),
         supportsCaretBrowsingMode: x => x === "true",
+        viewerCssTheme: x => parseInt(x),
       });
     }
 
@@ -478,7 +486,8 @@ const PDFViewerApplication = {
 
     const enableHWA = AppOptions.get("enableHWA"),
       maxCanvasPixels = AppOptions.get("maxCanvasPixels"),
-      maxCanvasDim = AppOptions.get("maxCanvasDim");
+      maxCanvasDim = AppOptions.get("maxCanvasDim"),
+      capCanvasAreaFactor = AppOptions.get("capCanvasAreaFactor");
     const pdfViewer = (this.pdfViewer = new PDFViewer({
       container,
       viewer,
@@ -508,6 +517,7 @@ const PDFViewerApplication = {
       enablePrintAutoRotate: AppOptions.get("enablePrintAutoRotate"),
       maxCanvasPixels,
       maxCanvasDim,
+      capCanvasAreaFactor,
       enableDetailCanvas: AppOptions.get("enableDetailCanvas"),
       enablePermissions: AppOptions.get("enablePermissions"),
       pageColors,
@@ -516,6 +526,7 @@ const PDFViewerApplication = {
       enableHWA,
       supportsPinchToZoom: this.supportsPinchToZoom,
       enableAutoLinking: AppOptions.get("enableAutoLinking"),
+      minDurationToUpdateCanvas: AppOptions.get("minDurationToUpdateCanvas"),
     }));
 
     renderingQueue.setViewer(pdfViewer);
@@ -941,10 +952,18 @@ const PDFViewerApplication = {
 
   setTitleUsingUrl(url = "", downloadUrl = null) {
     this.url = url;
-    this.baseUrl = url.split("#", 1)[0];
+    this.baseUrl =
+      typeof PDFJSDev === "undefined" || PDFJSDev.test("GENERIC")
+        ? updateUrlHash(url, "", /* allowRel = */ true)
+        : updateUrlHash(url, "");
     if (downloadUrl) {
       this._downloadUrl =
-        downloadUrl === url ? this.baseUrl : downloadUrl.split("#", 1)[0];
+        // eslint-disable-next-line no-nested-ternary
+        downloadUrl === url
+          ? this.baseUrl
+          : typeof PDFJSDev === "undefined" || PDFJSDev.test("GENERIC")
+            ? updateUrlHash(downloadUrl, "", /* allowRel = */ true)
+            : updateUrlHash(downloadUrl, "");
     }
     if (isDataScheme(url)) {
       this._hideViewBookmark();
@@ -1307,7 +1326,7 @@ const PDFViewerApplication = {
     this.secondaryToolbar?.setPagesCount(pdfDocument.numPages);
 
     if (typeof PDFJSDev !== "undefined" && PDFJSDev.test("CHROME")) {
-      const baseUrl = location.href.split("#", 1)[0];
+      const baseUrl = updateUrlHash(location, "");
       // Ignore "data:"-URLs for performance reasons, even though it may cause
       // internal links to not work perfectly in all cases (see bug 1803050).
       this.pdfLinkService.setDocument(
