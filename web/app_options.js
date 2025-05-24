@@ -19,13 +19,16 @@ if (typeof PDFJSDev === "undefined" || PDFJSDev.test("GENERIC")) {
   if (
     typeof PDFJSDev !== "undefined" &&
     PDFJSDev.test("LIB") &&
-    typeof navigator === "undefined"
+    !globalThis.navigator?.language
   ) {
-    globalThis.navigator = Object.create(null);
+    globalThis.navigator = {
+      language: "en-US",
+      maxTouchPoints: 1,
+      platform: "",
+      userAgent: "",
+    };
   }
-  const userAgent = navigator.userAgent || "";
-  const platform = navigator.platform || "";
-  const maxTouchPoints = navigator.maxTouchPoints || 1;
+  const { maxTouchPoints, platform, userAgent } = navigator;
 
   const isAndroid = /Android/.test(userAgent);
   const isIOS =
@@ -165,6 +168,11 @@ const defaultOptions = {
     value: 2,
     kind: OptionKind.VIEWER + OptionKind.PREFERENCE,
   },
+  capCanvasAreaFactor: {
+    /** @type {number} */
+    value: 200,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE,
+  },
   cursorToolOnLoad: {
     /** @type {number} */
     value: 0,
@@ -299,6 +307,11 @@ const defaultOptions = {
     value: 2 ** 25,
     kind: OptionKind.VIEWER,
   },
+  minDurationToUpdateCanvas: {
+    /** @type {number} */
+    value: 500, // ms
+    kind: OptionKind.VIEWER,
+  },
   forcePageColors: {
     /** @type {boolean} */
     value: false,
@@ -393,7 +406,13 @@ const defaultOptions = {
   },
   docBaseUrl: {
     /** @type {string} */
-    value: typeof PDFJSDev === "undefined" ? document.URL.split("#", 1)[0] : "",
+    value:
+      typeof PDFJSDev === "undefined"
+        ? // NOTE: We cannot use the `updateUrlHash` function here, because of
+          // the default preferences generation (see `gulpfile.mjs`).
+          // However, the following line is *only* used in development mode.
+          document.URL.split("#", 1)[0]
+        : "",
     kind: OptionKind.API,
   },
   enableHWA: {
@@ -483,7 +502,10 @@ const defaultOptions = {
 
   workerPort: {
     /** @type {Object} */
-    value: null,
+    value:
+      typeof PDFJSDev !== "undefined" && PDFJSDev.test("MOZCENTRAL")
+        ? globalThis.pdfjsPreloadedWorker || null
+        : null,
     kind: OptionKind.WORKER,
   },
   workerSrc: {

@@ -302,7 +302,7 @@ describe("Ink Editor", () => {
           await page.mouse.up();
           await awaitPromise(clickHandle);
 
-          page.mouse.click(rect.x - 10, rect.y + 10);
+          await page.mouse.click(rect.x - 10, rect.y + 10);
           await page.waitForSelector(`${getEditorSelector(0)}.disabled`);
         })
       );
@@ -583,7 +583,7 @@ describe("Ink Editor", () => {
           }
 
           const red = "#ff0000";
-          page.evaluate(value => {
+          await page.evaluate(value => {
             window.PDFViewerApplication.eventBus.dispatch(
               "switchannotationeditorparams",
               {
@@ -763,7 +763,7 @@ describe("Ink Editor", () => {
           await selectEditor(page, pdfjsA);
 
           const red = "#ff0000";
-          page.evaluate(value => {
+          await page.evaluate(value => {
             window.PDFViewerApplication.eventBus.dispatch(
               "switchannotationeditorparams",
               {
@@ -896,8 +896,11 @@ describe("Ink Editor", () => {
           await page.waitForSelector(`${editorSelector} button.delete`);
           await page.click(`${editorSelector} button.delete`);
           await waitForSerialized(page, 0);
+          await page.waitForSelector("#editorUndoBar", { visible: true });
 
-          await page.waitForSelector("#editorUndoBar:not([hidden])");
+          await page.waitForSelector("#editorUndoBarUndoButton", {
+            visible: true,
+          });
           await page.click("#editorUndoBarUndoButton");
           await waitForSerialized(page, 1);
           await page.waitForSelector(editorSelector);
@@ -966,7 +969,7 @@ describe("Ink Editor", () => {
           await page.waitForSelector(`${editorSelector} button.delete`);
           await page.click(`${editorSelector} button.delete`);
           await waitForSerialized(page, 0);
-          await page.waitForSelector("#editorUndoBar:not([hidden])");
+          await page.waitForSelector("#editorUndoBar", { visible: true });
 
           const newRect = await getRect(page, ".annotationEditorLayer");
           const newXStart = newRect.x + 300;
@@ -1093,9 +1096,15 @@ describe("Ink Editor", () => {
           await waitForSelectedEditor(page, editorSelector);
           await dragAndDrop(page, editorSelector, [[0, -30]], /* steps = */ 10);
           await waitForSerialized(page, 2);
+
           await page.waitForSelector(`${editorSelector} button.delete`);
           await page.click(`${editorSelector} button.delete`);
           await waitForSerialized(page, 1);
+          await page.waitForSelector("#editorUndoBar", { visible: true });
+
+          await page.waitForSelector("#editorUndoBarUndoButton", {
+            visible: true,
+          });
           await page.click("#editorUndoBarUndoButton");
           await page.waitForSelector("#editorUndoBar", { hidden: true });
 
